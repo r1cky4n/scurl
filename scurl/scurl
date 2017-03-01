@@ -1,0 +1,97 @@
+#!/usr/bin/python
+
+#=======================================================================================================================
+#
+# CS255 Project 2 - SCURL
+#
+# Author:   Rick Yan <my259@stanford.edu>
+#
+#=======================================================================================================================
+
+
+
+#=======================================================================================================================
+# IMPORTS
+#=======================================================================================================================
+import OpenSSL
+import argparse
+
+
+#=======================================================================================================================
+# Defines
+#=======================================================================================================================
+
+# Enumeration between different protocol choices -> TLS v1.0-1.2, SSLV3
+#
+def enum(**enums):
+    return type('Enum', (), enums)
+t_protocol = enum(tls_v1p0=0, tls_v1p1=1, tls_v1p2=2, ssl_v3=3)
+
+
+
+#=======================================================================================================================
+# Internal Functions
+#=======================================================================================================================
+
+
+# Choose protocol based on precedence...
+#   SSL 3 > TLS 1.2 > TLS 1.1 > TLS 1.0
+#   DEFAULT: TLS 1.2
+#
+def _choose_protocol( args ):
+    if args.sslv3 : 
+        return t_protocol.ssl_v3
+    elif args.tlsv1p2 : 
+        return t_protocol.tls_v1p2
+    elif args.tlsv1p1 : 
+        return t_protocol.tls_v1p1
+    elif args.tlsv1p0 : 
+        return t_protocol.tls_v1p0
+    else : 
+        return t_protocol.tls_v1p2
+
+
+
+#=======================================================================================================================
+# Main and Argument Parse
+#=======================================================================================================================
+
+def main():
+    descr = 'Secure CURL implementation for CS 255 Project 2: Rick Yan <my259@stanford.edu>'
+    parser = argparse.ArgumentParser(description=descr)
+
+    parser.add_argument('--tlsv1.0',           action='store_true', dest="tlsv1p0", help='Use TLSv1.0 (SSL)')
+    parser.add_argument('--tlsv1.1',           action='store_true', dest="tlsv1p1", help='Use TLSv1.1 (SSL)')
+    parser.add_argument('--tlsv1.2',           action='store_true', dest="tlsv1p2", help='Use TLSv1.2 (SSL)')
+    parser.add_argument('--sslv3', '-3',       action='store_true', dest="sslv3",   help='Use SSLv3 (SSL)')
+    parser.add_argument('--ciphers',           action='store',                      help='SSL ciphers to use (SSL)')
+    parser.add_argument('--crlfile',           action='store',                      help='Get a CRL list in PEM format from the given file')
+    parser.add_argument('--cacert',            action='store',                      help='CA certificate to verify peer against (SSL)')
+    parser.add_argument('--allow-stale-certs', action='store',      dest="N",       help='Allow stale certificate less than N days old to be used')
+    parser.add_argument('--pinnedcertificate', action='store',                      help='Only send data to authenticated server, overrides --cacert and --crlfile')
+    parser.add_argument('url',                 action='store',      nargs="*",      help='URL target')
+
+
+    args = parser.parse_args()
+
+   # if (args.csv == None):
+   #     print 'ERROR! PROPER MINIMUM FORMAT: python CommandGen.py --csv <CSV FILE>'
+   #     exit(1)
+   # genCmdScript(args)
+
+
+    print args.ciphers
+    print args.N
+    print args.url
+
+    protocol = _choose_protocol( args )
+
+    print protocol
+
+
+if __name__ == '__main__':
+    main()
+
+
+
+
