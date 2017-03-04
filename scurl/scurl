@@ -40,15 +40,15 @@ t_protocol = enum(tls_v1p0=0, tls_v1p1=1, tls_v1p2=2, ssl_v3=3)
 #
 def _choose_protocol( args ):
     if args.prot == 0:
-        return OpenSSL.SSL.TLSv1_METHOD
+        return SSL.TLSv1_METHOD
     elif args.prot == 1:
-        return OpenSSL.SSL.TLSv1_1_METHOD
+        return SSL.TLSv1_1_METHOD
     elif args.prot == 2:
-        return OpenSSL.SSL.TLSv1_2_METHOD
+        return SSL.TLSv1_2_METHOD
     elif args.prot == 3:
-        return OpenSSL.SSL.SSLv3_METHOD
+        return SSL.SSLv3_METHOD
     else:
-        return OpenSSL.SSL.TLSv1_2_METHOD
+        return SSL.TLSv1_2_METHOD
 
 
 #=======================================================================================================================
@@ -83,10 +83,10 @@ def main():
     print args.N
     print args.url
 
-    #protocol = _choose_protocol( args )
-    #print protocol
+    protocol = _choose_protocol( args )
+    print protocol
 
-    context = OpenSSL.SSL.Context(OpenSSL.SSL.TLSv1_2_METHOD) # Use TLS Method
+    context = SSL.Context(SSL.TLSv1_2_METHOD) # Use TLS Method
 
 
 
