@@ -86,52 +86,57 @@ def _choose_protocol( args ):
         return SSL.SSLv3_METHOD
     else:
         #return SSL.TLSv1_2_METHOD 
-        #return SSL.TLSv1_METHOD #FIXME - make it 1.2 default, for now it keep 1.0 so we can develop off of corn
-        return SSL.SSLv3_METHOD
-
-
-def _get_context( protocol, ip_addr, cacert ):
-    ca_file = def_ca_file
-    ca_path = def_ca_path
-
-    context = SSL.Context(SSL.SSLv3_METHOD)
-    context.set_verify(SSL.VERIFY_NONE, _verify)
-    context.set_options(SSL.OP_NO_SSLv2) # Don't accept SSLv2
-
-    # add input cert if cacert exists - FIXME
-    #
-    context.load_verify_locations(None, "/etc/ssl/certs/")
-
-
-
-    #if cacert != None:
-    #    store.add_cert(cacert)
-
-
-    print "test2"
-
-
-    print "test2.5"
-
-
-    #context.load_verify_locations(ca_file, ca_path)
-
-    sock = socket.socket()
-    ssl_sock = SSL.Connection(context, sock)
-    ssl_sock.connect((ip_addr, 80))  # setting port as 0 makes OS choose port
-    ssl_sock.send('test')
-
-    print "test3"
-
-   # ssl_sock.do_handshake()
+        return SSL.TLSv1_METHOD #FIXME - make it 1.2 default, for now it keep 1.0 so we can develop off of corn
 
 def _verify(conn, cert, errno, depth, result):
     print "ssl callback"
+
+    print conn
+    print 
+    print cert
+    print
+    print errno
+    print 
+    print depth
+    print
+    print result
+
 
     if depth == 0 and (errno == 9 or errno == 10):
         return False # or raise Exception("Certificate not yet valid or expired")
     return True
 
+
+# Sets up Context, Returns Context
+# FIXME - input parameters
+#
+def _get_context( protocol ):
+    context = SSL.Context(protocol)
+
+    # FIXME - check options
+    #
+    context.set_options(SSL.OP_NO_SSLv2) # Don't accept SSLv2
+    context.set_verify(SSL.VERIFY_NONE, _verify)
+
+    # add input cert if cacert exists - FIXME
+    # FIXME - CRL File 
+
+    return context
+
+
+# Sets up SSL Connection, Does Handshake, Returns SSL Socket
+#
+def _ssl_connect( context, ip_addr, port ):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    ssl_sock = SSL.Connection(context, sock)
+    ssl_sock.connect((ip_addr, port))  # 443 is default https port
+    ssl_sock.do_handshake()
+    return ssl_sock
+
+# Close the SSL Socket
+#
+def _ssl_close( ssl_sock ):
+    ssl_sock.close()
 
 
 #=======================================================================================================================
@@ -142,10 +147,10 @@ def main():
     descr = 'Secure CURL implementation for CS 255 Project 2: Rick Yan <my259@stanford.edu>'
     parser = argparse.ArgumentParser(description=descr)
 
-    parser.add_argument('--tlsv1.0',           nargs="?", dest="prot", const=0, help='Use TLSv1.0 (SSL)')
-    parser.add_argument('--tlsv1.1',           nargs="?", dest="prot", const=1, help='Use TLSv1.1 (SSL)')
-    parser.add_argument('--tlsv1.2',           nargs="?", dest="prot", const=2, help='Use TLSv1.2 (SSL)')
-    parser.add_argument('--sslv3', '-3',       nargs="?", dest="prot", const=3, help='Use SSLv3 (SSL)')
+    parser.add_argument('--tlsv1.0',           action="store_const", dest="prot", const=0, help='Use TLSv1.0 (SSL)')
+    parser.add_argument('--tlsv1.1',           action="store_const", dest="prot", const=1, help='Use TLSv1.1 (SSL)')
+    parser.add_argument('--tlsv1.2',           action="store_const", dest="prot", const=2, help='Use TLSv1.2 (SSL)')
+    parser.add_argument('--sslv3', '-3',       action="store_const", dest="prot", const=3, help='Use SSLv3 (SSL)')
     parser.add_argument('--ciphers',                      help='SSL ciphers to use (SSL)')
     parser.add_argument('--crlfile',                      help='Get a CRL list in PEM format from the given file')
     parser.add_argument('--cacert',                       help='CA certificate to verify peer against (SSL)')
@@ -155,19 +160,24 @@ def main():
 
     args = parser.parse_args()
 
+
+    print args.prot 
+    print "------SETTING UP SSL CONNECTION"
+
+
+
     if (len(args.url) == 0):
         sys.stderr.write("Please Input a URL, use ./scurl --help for more information\n")
         exit(1)
 
 
-    print "------SETTING UP SSL CONNECTION"
-
     
     protocol = _choose_protocol( args )
     url      = _check_and_format_url( args.url[0] )
-    ctx      = _get_context( protocol, url, args.cacert )
+    ctx      = _get_context( protocol)
+    ssl_sock = _ssl_connect( ctx, url, 443 )
 
-
+    _ssl_close(ssl_sock)
 
 
 
