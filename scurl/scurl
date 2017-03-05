@@ -88,24 +88,6 @@ def _choose_protocol( args ):
         #return SSL.TLSv1_2_METHOD 
         return SSL.TLSv1_METHOD #FIXME - make it 1.2 default, for now it keep 1.0 so we can develop off of corn
 
-def _verify(conn, cert, errno, depth, result):
-    print "ssl callback"
-
-    print conn
-    print 
-    print cert
-    print
-    print errno
-    print 
-    print depth
-    print
-    print result
-
-
-    if depth == 0 and (errno == 9 or errno == 10):
-        return False # or raise Exception("Certificate not yet valid or expired")
-    return True
-
 
 # Sets up Context, Returns Context
 # FIXME - input parameters
@@ -116,7 +98,18 @@ def _get_context( protocol ):
     # FIXME - check options
     #
     context.set_options(SSL.OP_NO_SSLv2) # Don't accept SSLv2
-    context.set_verify(SSL.VERIFY_NONE, _verify)
+
+    # VERIFY_NONE - When the SSL_CTX object is being used in client mode, any certificate received from the server will 
+    #               be verified, but failure will not terminate the handshake.   
+    # 
+    # VERIFY_PEER - When the SSL_CTX object is being used in client mode, if the server sends a certificate, it will be 
+    #               verified. If the verification fails, the handshake will be terminated immediately. The only time that 
+    #               a server would not send a certificate is when an anonymous cipher is in use. Anonymous ciphers are 
+    #               disabled by default. Any other flags combined with this one in client mode are ignored.
+    #
+    # We are using context in client mode, VERIFY_PEER is the right option
+    #
+    context.set_verify(SSL.VERIFY_PEER, _verify)
 
     # add input cert if cacert exists - FIXME
     # FIXME - CRL File 
@@ -137,6 +130,36 @@ def _ssl_connect( context, ip_addr, port ):
 #
 def _ssl_close( ssl_sock ):
     ssl_sock.close()
+
+
+#=======================================================================================================================
+# Certificate Verification Function
+#=======================================================================================================================
+
+
+def _verify(conn, cert, errno, depth, result):
+    print "ssl callback"
+
+    print conn
+    print 
+    print cert
+    print
+    print errno
+    print 
+    print depth
+    print
+    print result
+
+    print "-------------------------------"
+
+
+
+
+
+    if depth == 0 and (errno == 9 or errno == 10):
+        return False # or raise Exception("Certificate not yet valid or expired")
+    return True
+
 
 
 #=======================================================================================================================
