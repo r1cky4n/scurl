@@ -16,7 +16,11 @@
 import OpenSSL
 from OpenSSL import SSL
 
+import socket
+
+
 import argparse
+import sys
 
 
 #=======================================================================================================================
@@ -30,10 +34,43 @@ def enum(**enums):
 t_protocol = enum(tls_v1p0=0, tls_v1p1=1, tls_v1p2=2, ssl_v3=3)
 
 
+# FIXME - for OSX, need to change on CORN
+def_ca_file = '/etc/ssl/cert.pem' 
+def_ca_path = '/etc/ssl/'
+
 
 #=======================================================================================================================
 # Internal Functions
 #=======================================================================================================================
+
+
+# Checks single url for correctness
+#
+# Input URL from user can be either in number-and-dots notation, or text notation, this function should convert
+# URL to number-and-dots notation to be properly used.
+#
+# URL input is a string
+#
+# Additional Checks for Correctness
+#   reject URLS without https scheme
+#   reject invalid addresses
+#
+#
+# FIXME - WIP
+#
+def _check_and_format_url( url ):
+
+    ip_addr = ""
+    try:
+        ip_addr = socket.gethostbyname(url)
+    except socket.error:
+        # Not a legal addresses - printout stderr 
+        #
+        sys.stderr.write("Invalid URL, exiting...\n")
+        exit(1)
+
+
+    return ip_addr
 
 
 # Choose protocol, should just be prot input, otherwise default to tls 1.2
@@ -48,7 +85,53 @@ def _choose_protocol( args ):
     elif args.prot == 3:
         return SSL.SSLv3_METHOD
     else:
-        return SSL.TLSv1_2_METHOD
+        #return SSL.TLSv1_2_METHOD 
+        #return SSL.TLSv1_METHOD #FIXME - make it 1.2 default, for now it keep 1.0 so we can develop off of corn
+        return SSL.SSLv3_METHOD
+
+
+def _get_context( protocol, ip_addr, cacert ):
+    ca_file = def_ca_file
+    ca_path = def_ca_path
+
+    context = SSL.Context(SSL.SSLv3_METHOD)
+    context.set_verify(SSL.VERIFY_NONE, _verify)
+    context.set_options(SSL.OP_NO_SSLv2) # Don't accept SSLv2
+
+    # add input cert if cacert exists - FIXME
+    #
+    context.load_verify_locations(None, "/etc/ssl/certs/")
+
+
+
+    #if cacert != None:
+    #    store.add_cert(cacert)
+
+
+    print "test2"
+
+
+    print "test2.5"
+
+
+    #context.load_verify_locations(ca_file, ca_path)
+
+    sock = socket.socket()
+    ssl_sock = SSL.Connection(context, sock)
+    ssl_sock.connect((ip_addr, 80))  # setting port as 0 makes OS choose port
+    ssl_sock.send('test')
+
+    print "test3"
+
+   # ssl_sock.do_handshake()
+
+def _verify(conn, cert, errno, depth, result):
+    print "ssl callback"
+
+    if depth == 0 and (errno == 9 or errno == 10):
+        return False # or raise Exception("Certificate not yet valid or expired")
+    return True
+
 
 
 #=======================================================================================================================
@@ -70,27 +153,19 @@ def main():
     parser.add_argument('--pinnedcertificate',            help='Only send data to authenticated server, overrides --cacert and --crlfile')
     parser.add_argument('url',                 nargs="*", help='URL target')
 
-
     args = parser.parse_args()
 
-   # if (args.csv == None):
-   #     print 'ERROR! PROPER MINIMUM FORMAT: python CommandGen.py --csv <CSV FILE>'
-   #     exit(1)
-   # genCmdScript(args)
+    if (len(args.url) == 0):
+        sys.stderr.write("Please Input a URL, use ./scurl --help for more information\n")
+        exit(1)
 
 
-    print args.ciphers
-    print args.N
-    print args.url
+    print "------SETTING UP SSL CONNECTION"
 
+    
     protocol = _choose_protocol( args )
-    print protocol
-
-    context = SSL.Context(SSL.TLSv1_2_METHOD) # Use TLS Method
-
-
-
-
+    url      = _check_and_format_url( args.url[0] )
+    ctx      = _get_context( protocol, url, args.cacert )
 
 
 
