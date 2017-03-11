@@ -15,6 +15,7 @@
 #=======================================================================================================================
 import OpenSSL
 from OpenSSL import SSL
+from OpenSSL import crypto
 
 import socket
 
@@ -61,7 +62,6 @@ CRLF = '\r\n\r\n'
 #
 #
 def _check_and_format_url( url ):
-
 
     # URL Parse to get Schema, hostname, port
     #
@@ -111,30 +111,61 @@ def _choose_protocol( args ):
         return SSL.TLSv1_METHOD #FIXME - make it 1.2 default, for now it keep 1.0 so we can develop off of corn
 
 
+# load crl.pem file, output x509 representation
+#
+def _load_crl( crlfile ):
+
+    if crlfile == None:
+        return None
+
+    crl_pem = ""
+    with open(crlfile, 'r') as _crl_file:
+        crl_pem = "".join(_crl_file.readlines()) 
+
+    try:
+        crl_object = OpenSSL.crypto.load_crl(OpenSSL.crypto.FILETYPE_PEM, crl_pem)
+    except Exception as e:
+        sys.stderr.write("CRLFILE Parse failed: "+str(e)+"\n")
+        exit(1)
+
+    #revoked_objects = crl_object.get_revoked()
+    #for rvk in revoked_objects:
+    #    print "Serial:", rvk.get_serial()
+
+    return crl_object
+
+
 # Sets up Context, Returns Context
 # FIXME - input parameters
 #
 def _get_context( protocol, cacert, crl ):
     context = SSL.Context(protocol)
 
-    # Setup X509Store Properly
-    #   store cacert - if it does not exist, verification mode is NONE
-    #   store CRL if it exists
-    store = context.get_cert_store()
-   
-    # Add list of trusted CAs - if CACERT input not provided, skip trusted CA check and only do stale check
+    # use platform certificates
     #
-    verify_mode = SSL.VERIFY_NONE 
+    context.set_default_verify_paths()
+
+    # FIXME - mimic OSX default verify path proper behavior - will comment out
+    #
+    try:
+        context.load_verify_locations('/etc/ssl/cert.pem', None)
+    except:
+        # FIXME - will remove, but keep this here for proper OSX functionality
+        #
+        continue
+
+    # Add list of trusted CAs
+    #
     if cacert != None:
-        verify_mode = SSL.VERIFY_PEER
         try:
-            store.add_cert( cacert )
+            context.load_verify_locations(cacert, None)
         except Exception as e:
             sys.stderr.write("Add CACERT failed: "+str(e)+"\n")
             exit(1)
     
     # Add CRL to Store
     #
+    store = context.get_cert_store()
     if crl != None:
         try:
             store.add_crl( crl )
@@ -157,16 +188,7 @@ def _get_context( protocol, cacert, crl ):
     #
     # We are using context in client mode
     #
-    # NOTE: Since we are not allowed to use any files other than the ones specified by the input arguments, we do not
-    #       have access to a default trusted cert list. As such, if cacert is not provided,  set as VERIFY_NONE, and 
-    #       only check if the certificate is stale or not.
-    #
-    context.set_verify(verify_mode, _verify)
-
-    #context.load_verify_locations('/etc/ssl/cert.pem', '/etc/ssl/')
-
-    # add input cert if cacert exists - FIXME
-    # FIXME - CRL File 
+    context.set_verify(SSL.VERIFY_PEER, _verify)
 
     return context
 
@@ -194,7 +216,7 @@ def _ssl_close( ssl_sock ):
 
 # Get the Certificate from the Connected Server
 #
-def _get_cert( ssl_sock ):
+def _check_cert( ssl_sock ):
     cert = ssl_sock.get_peer_certificate()
     common_name = cert.get_subject().commonName.decode()
 
@@ -214,13 +236,13 @@ def _verify(conn, cert, errno, depth, result):
     #print 
     #print cert
     #print
-    #print errno
+    print errno
     #print 
-    #print depth
+    print depth
     #print
-    #print result
+    print result
 
-    #print "-------------------------------"
+    print "-------------------------------"
 
 
     if depth == 0 and (errno == 9 or errno == 10):
@@ -294,7 +316,7 @@ def _get_data( ssl_sock ):
    
 
     data = recv_with_timeout( ssl_sock )
-    print data
+    #print data
    
 
     
@@ -331,20 +353,18 @@ def main():
         exit(1)
 
 
-    
+   
+    # Initial parse of the input data
+    #
     protocol    = _choose_protocol( args )
     (addr,port) = _check_and_format_url( args.url[0] )
+    crl         = _load_crl(args.crlfile)
+    cacert      = args.cacert 
     
     
     
     
-    
-    
-    
-    
-    
-    
-    ctx         = _get_context( protocol, None, None )
+    ctx         = _get_context( protocol, cacert, crl )
 
 
     ssl_sock    = _ssl_connect( ctx, addr, port )
