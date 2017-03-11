@@ -114,8 +114,34 @@ def _choose_protocol( args ):
 # Sets up Context, Returns Context
 # FIXME - input parameters
 #
-def _get_context( protocol ):
+def _get_context( protocol, cacert, crl ):
     context = SSL.Context(protocol)
+
+    # Setup X509Store Properly
+    #   store cacert - if it does not exist, verification mode is NONE
+    #   store CRL if it exists
+    store = context.get_cert_store()
+   
+    # Add list of trusted CAs - if CACERT input not provided, skip trusted CA check and only do stale check
+    #
+    verify_mode = SSL.VERIFY_NONE 
+    if cacert != None:
+        verify_mode = SSL.VERIFY_PEER
+        try:
+            store.add_cert( cacert )
+        except Exception as e:
+            sys.stderr.write("Add CACERT failed: "+str(e)+"\n")
+            exit(1)
+    
+    # Add CRL to Store
+    #
+    if crl != None:
+        try:
+            store.add_crl( crl )
+        except Exception as e:
+            sys.stderr.write("Add CRL failed: "+str(e)+"\n")
+            exit(1)
+
 
     # FIXME - check options
     #
@@ -129,11 +155,15 @@ def _get_context( protocol ):
     #               a server would not send a certificate is when an anonymous cipher is in use. Anonymous ciphers are 
     #               disabled by default. Any other flags combined with this one in client mode are ignored.
     #
-    # We are using context in client mode, VERIFY_PEER is the right option
+    # We are using context in client mode
     #
-    context.set_verify(SSL.VERIFY_PEER, _verify)
+    # NOTE: Since we are not allowed to use any files other than the ones specified by the input arguments, we do not
+    #       have access to a default trusted cert list. As such, if cacert is not provided,  set as VERIFY_NONE, and 
+    #       only check if the certificate is stale or not.
+    #
+    context.set_verify(verify_mode, _verify)
 
-    context.load_verify_locations('/etc/ssl/cert.pem', '/etc/ssl/')
+    #context.load_verify_locations('/etc/ssl/cert.pem', '/etc/ssl/')
 
     # add input cert if cacert exists - FIXME
     # FIXME - CRL File 
@@ -285,11 +315,11 @@ def main():
     parser.add_argument('--tlsv1.1',           action="store_const", dest="prot", const=1, help='Use TLSv1.1 (SSL)')
     parser.add_argument('--tlsv1.2',           action="store_const", dest="prot", const=2, help='Use TLSv1.2 (SSL)')
     parser.add_argument('--sslv3', '-3',       action="store_const", dest="prot", const=3, help='Use SSLv3 (SSL)')
-    parser.add_argument('--ciphers',                      help='SSL ciphers to use (SSL)')
-    parser.add_argument('--crlfile',                      help='Get a CRL list in PEM format from the given file')
-    parser.add_argument('--cacert',                       help='CA certificate to verify peer against (SSL)')
-    parser.add_argument('--allow-stale-certs', dest="N",  help='Allow stale certificate less than N days old to be used')
-    parser.add_argument('--pinnedcertificate',            help='Only send data to authenticated server, overrides --cacert and --crlfile')
+    parser.add_argument('--ciphers',           help='SSL ciphers to use (SSL)')
+    parser.add_argument('--crlfile',           help='Get a CRL list in PEM format from the given file')
+    parser.add_argument('--cacert',            help='CA certificate to verify peer against (SSL)')
+    parser.add_argument('--allow-stale-certs', dest="staleN",  help='Allow stale certificate less than N days old to be used')
+    parser.add_argument('--pinnedcertificate', help='Only send data to authenticated server, overrides --cacert and --crlfile')
     parser.add_argument('url',                 nargs="*", help='URL target')
 
     args = parser.parse_args()
@@ -314,13 +344,7 @@ def main():
     
     
     
-    ctx         = _get_context( protocol )
-
-
-
-
-
-
+    ctx         = _get_context( protocol, None, None )
 
 
     ssl_sock    = _ssl_connect( ctx, addr, port )
