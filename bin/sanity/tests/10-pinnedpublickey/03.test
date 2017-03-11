@@ -1,0 +1,1 @@
+--pinnedcertificate $TEST_DIR/data/does-not-exist.pem https://www.stanford.edu/

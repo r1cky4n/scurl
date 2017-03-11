@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>badssl.com</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="shortcut icon" href="/icons/favicon-blue.ico"/>
+  <link rel="apple-touch-icon" href="/icons/icon-blue.png"/>
+  <link rel="stylesheet" href="index.css">
+  <link rel="stylesheet" href="github-ribbon.css">
+  <script src="index.js"></script>
+
+  <link rel=preload as=image href="front-page-icons/bad-white.svg">
+  <link rel=preload as=image href="front-page-icons/dubious-white.svg">
+  <link rel=preload as=image href="front-page-icons/good-white.svg">
+
+  <!-- fUnKy -->
+  <link rel="stylesheet" href="funky/funky.css">
+  <script src="funky/funky.js"></script>
+</head>
+<body>
+
+<div class="title-bar" title="badssl.com - a memorable site for HTTPS misconfiguration">
+  badssl.com
+</div>
+
+<div id="links">
+
+<div class="column">
+  <div class="group">
+    <h2 id="certificate"><span class="emoji">🎫</span>Certificate</h2>
+    <a href="https://expired.badssl.com/" class="bad"><span class="icon"></span>expired</a>
+    <a href="https://wrong.host.badssl.com/" class="bad"><span class="icon"></span>wrong.host</a>
+    <a href="https://self-signed.badssl.com/" class="bad"><span class="icon"></span>self-signed</a>
+    <a href="https://untrusted-root.badssl.com/" class="bad"><span class="icon"></span>untrusted-root</a>
+    <a href="https://revoked.badssl.com/" class="bad"><span class="icon"></span>revoked</a>
+    <a href="https://incomplete-chain.badssl.com/" class="dubious"><span class="icon"></span>incomplete-chain</a>
+    <hr>
+    <a href="https://sha256.badssl.com/" class="good"><span class="icon"></span>sha256</a>
+    <hr>
+    <a href="https://1000-sans.badssl.com/" class="good"><span class="icon"></span>1000-sans</a>
+    <a href="https://10000-sans.badssl.com/" class="good"><span class="icon"></span>10000-sans</a>
+    <hr>
+    <a href="https://ecc256.badssl.com/" class="good"><span class="icon"></span>ecc256</a>
+    <a href="https://ecc384.badssl.com/" class="good"><span class="icon"></span>ecc384</a>
+    <hr>
+    <a href="https://rsa8192.badssl.com/" class="dubious"><span class="icon"></span>rsa8192</a>
+  </div>
+  <div class="group">
+    <h2 id="mixed-content"><span class="emoji">🖼</span>Mixed Content</h2>
+    <a href="https://mixed-script.badssl.com/" class="bad"><span class="icon"></span>mixed-script</a>
+    <a href="https://very.badssl.com/" class="bad"><span class="icon"></span>very</a>
+    <hr>
+    <a href="https://mixed.badssl.com/" class="dubious"><span class="icon"></span>mixed</a>
+    <a href="https://mixed-favicon.badssl.com/" class="dubious"><span class="icon"></span>mixed-favicon</a>
+  </div>
+  <div class="group">
+    <h2 id="miscellaneous"><span class="emoji">✏️</span>HTTP Input</h2>
+    <a href="http://http-password.badssl.com/" class="bad"><span class="icon"></span>http-password</a>
+    <a href="http://http-login.badssl.com/" class="bad"><span class="icon"></span>http-login</a>
+    <a href="http://http-dynamic-login.badssl.com/" class="bad"><span class="icon"></span>http-dynamic-login</a>
+    <a href="http://http-credit-card.badssl.com/" class="bad"><span class="icon"></span>http-credit-card</a>
+  </div>
+  <div class="group">
+    <h2 id="cipher-suite"><span class="emoji">🔀</span>Cipher Suite</h2>
+    <a href="https://cbc.badssl.com/" class="dubious"><span class="icon"></span>cbc</a>
+    <a href="https://rc4-md5.badssl.com/" class="bad hidden"><span class="icon"></span>rc4-md5</a>
+    <a href="https://rc4.badssl.com/" class="bad"><span class="icon"></span>rc4</a>
+    <a href="https://3des.badssl.com/" class="bad"><span class="icon"></span>3des</a>
+    <a href="https://null.badssl.com/" class="bad hidden"><span class="icon"></span>null</a>
+    <hr>
+    <a href="https://mozilla-old.badssl.com/" class="bad"><span class="icon"></span>mozilla-old</a>
+    <a href="https://mozilla-intermediate.badssl.com/" class="dubious"><span class="icon"></span>mozilla-intermediate</a>
+    <a href="https://mozilla-modern.badssl.com/" class="good"><span class="icon"></span>mozilla-modern</a>
+  </div>
+</div><!-- class="column" -->
+
+<div class="column">
+  <div class="group">
+    <h2 id="key-exchange"><span class="emoji">🔑</span>Key Exchange</h2>
+    <a href="https://dh480.badssl.com/" class="bad"><span class="icon"></span>dh480</a>
+    <a href="https://dh512.badssl.com/" class="bad hidden"><span class="icon"></span>dh512</a>
+    <a href="https://dh1024.badssl.com/" class="dubious"><span class="icon"></span>dh1024</a>
+    <a href="https://dh2048.badssl.com/" class="good"><span class="icon"></span>dh2048</a>
+    <hr>
+    <a href="https://dh-small-subgroup.badssl.com/" class="bad"><span class="icon"></span>dh-small-subgroup</a>
+    <a href="https://dh-composite.badssl.com/" class="bad"><span class="icon"></span>dh-composite</a>
+    <hr>
+    <a href="https://static-rsa.badssl.com/" class="dubious"><span class="icon"></span>static-rsa</a>
+  </div>
+  <div class="group">
+    <h2 id="upgrade"><span class="emoji">⬆️</span>Upgrade</h2>
+    <a href="https://hsts.badssl.com/" class="good"><span class="icon"></span>hsts</a>
+    <a href="https://upgrade.badssl.com/" class="good"><span class="icon"></span>upgrade</a>
+    <hr>
+    <a href="https://preloaded-hsts.badssl.com/" class="good"><span class="icon"></span>preloaded-hsts</a>
+    <a href="https://subdomain.preloaded-hsts.badssl.com/" class="bad"><span class="icon"></span>subdomain.preloaded-hsts</a>
+    <hr class="hidden">
+    <a href="https://https-everywhere.badssl.com/" class="good hidden"><span class="icon"></span>https-everywhere</a>
+  </div>
+  <div class="group">
+    <h2 id="miscellaneous"><span class="emoji">💬</span>Miscellaneous</h2>
+    <a href="http://http.badssl.com/" class="dubious"><span class="icon"></span>http</a>
+    <a href="https://spoofed-favicon.badssl.com/" class="dubious hidden"><span class="icon"></span>spoofed-favicon</a>
+    <a href="https://pinning-test.badssl.com/" class="bad"><span class="icon"></span>pinning-test</a>
+    <hr class="hidden">
+    <a href="https://long-extended-subdomain-name-containing-many-letters-and-dashes.badssl.com/" class="good hidden"><span class="icon"></span>long-extended-subdomain-name-containing-many-letters-and-dashes</a>
+    <a href="https://longextendedsubdomainnamewithoutdashesinordertotestwordwrapping.badssl.com/" class="good hidden"><span class="icon"></span>longextendedsubdomainnamewithoutdashesinordertotestwordwrapping</a>
+  </div>
+  <div class="group">
+    <h2 id="known-bad"><span class="emoji">❌</span>Known Bad</h2>
+    <a href="https://superfish.badssl.com/" class="bad"><span class="icon"></span>(Lenovo) Superfish</a>
+    <a href="https://edellroot.badssl.com/" class="bad"><span class="icon"></span>(Dell) eDellRoot</a>
+    <a href="https://dsdtestprovider.badssl.com/" class="bad"><span class="icon"></span>(Dell) DSD Test Provider</a>
+  </div>
+  <div class="group">
+    <h2 id="defunct"><span class="emoji">☠️</span>Defunct</h2>
+    <a href="https://sha1-2016.badssl.com/" class="dubious"><span class="icon"></span>sha1-2016</a>
+    <a href="https://sha1-2017.badssl.com/" class="bad"><span class="icon"></span>sha1-2017</a>
+  </div>
+  <div class="group">
+    <h2 id="external"><span class="emoji">🔗</span>External Test Sites</h2>
+    <a href="https://testsafebrowsing.appspot.com/" target="_blank" class="external"><span class="icon"></span>Safe Browsing</a>
+  </div>
+</div><!-- class="column" -->
+
+</div><!-- id="links" -->
+
+<h2 class="your-browser">Your Browser:
+  <div id="browser-info">
+    <span class="highlight">
+      <span id="ua"></span><br>
+      <span id="os"></span><br>
+    </span>
+    <span id="click-to-copy">📋 Click to copy</span>
+  </div>
+</h2>
+
+<!-- Start of GitHub ribbon. -->
+<div class="github-fork-ribbon-wrapper right-top-bottom">
+    <div class="github-fork-ribbon">
+        <a href="https://github.com/chromium/badssl.com"><span class="icon"></span>On GitHub</a>
+    </div>
+</div>
+<!-- End of GitHub ribbon. -->
+
+</body>
+</html>

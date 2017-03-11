@@ -1,0 +1,1 @@
+--pinnedcertificate $TEST_DIR/data/expired.pem https://expired.badssl.com/

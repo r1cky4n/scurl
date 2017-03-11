@@ -22,7 +22,7 @@ import socket
 import argparse
 from urlparse import urlparse
 import sys
-
+import time
 
 #=======================================================================================================================
 # Defines
@@ -39,6 +39,9 @@ t_protocol = enum(tls_v1p0=0, tls_v1p1=1, tls_v1p2=2, ssl_v3=3)
 def_ca_file = '/etc/ssl/cert.pem' 
 def_ca_path = '/etc/ssl/'
 
+# HTTP Request Ending 
+#
+CRLF = '\r\n\r\n'
 
 #=======================================================================================================================
 # Internal Functions
@@ -147,8 +150,8 @@ def _ssl_connect( context, ip_addr, port ):
     
     try:
         ssl_sock.do_handshake()
-    except:
-        sys.stderr.write("SSL do_handshake failed, most likely bad port, exiting...\n")
+    except Exception as e:
+        sys.stderr.write("SSL do_handshake failed: "+str(e)+"\n")
         exit(1)
     
     return ssl_sock
@@ -159,34 +162,112 @@ def _ssl_close( ssl_sock ):
     ssl_sock.close()
 
 
+# Get the Certificate from the Connected Server
+#
+def _get_cert( ssl_sock ):
+    cert = ssl_sock.get_peer_certificate()
+    common_name = cert.get_subject().commonName.decode()
+
+    print cert.get_subject().get_components()
+
+    return cert
+
 #=======================================================================================================================
 # Certificate Verification Function
 #=======================================================================================================================
 
 
 def _verify(conn, cert, errno, depth, result):
-    print "ssl callback"
+    #print "ssl callback"
 
-    print conn
-    print 
-    print cert
-    print
-    print errno
-    print 
-    print depth
-    print
-    print result
+    #print conn
+    #print 
+    #print cert
+    #print
+    #print errno
+    #print 
+    #print depth
+    #print
+    #print result
 
-    print "-------------------------------"
-
-
-
+    #print "-------------------------------"
 
 
     if depth == 0 and (errno == 9 or errno == 10):
         return False # or raise Exception("Certificate not yet valid or expired")
     return True
 
+
+#=======================================================================================================================
+# HTTP GET Request
+#=======================================================================================================================
+
+# Continuously call receive until all the data is parsed
+#
+def recv_with_timeout(ssl_sock,timeout=2):
+    # make socket non blocking
+    # 
+    ssl_sock.setblocking(0)
+     
+    # total data partwise in an array
+    #
+    total_data = []
+    data=''
+     
+    # beginning time
+    begin = time.time()
+    while True:
+        # if you got some data, then break after timeout
+        #
+        if total_data and ((time.time()-begin) > timeout):
+            break
+         
+        # if you got no data at all, wait a little longer, twice the timeout
+        #
+        elif (time.time()-begin) > timeout*2:
+            print 'error!!'
+            break
+         
+        # recv something
+        #
+        try:
+            data = ssl_sock.recv(8192)
+            if data:
+                total_data.append(data)
+                
+                # change the beginning time for measurement
+                #
+                begin=time.time()
+            else:
+                # sleep for some time to indicate a gap
+                #
+                time.sleep(0.1)
+        except:
+            pass
+     
+    # join all parts to make final string
+    #
+    return ''.join(total_data)
+
+
+
+# Format the HTTP GET Request through SSL.CONNECTION
+#
+def _get_data( ssl_sock ):
+
+    get_req = 'GET / HTTP/1.0' + CRLF
+
+    ssl_sock.send(get_req)
+    
+    print "---------------------"
+    print
+   
+
+    data = recv_with_timeout( ssl_sock )
+    print data
+   
+
+    
 
 
 #=======================================================================================================================
@@ -223,8 +304,30 @@ def main():
     
     protocol    = _choose_protocol( args )
     (addr,port) = _check_and_format_url( args.url[0] )
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     ctx         = _get_context( protocol )
+
+
+
+
+
+
+
+
     ssl_sock    = _ssl_connect( ctx, addr, port )
+    cert        = _get_cert( ssl_sock )
+
+    _get_data( ssl_sock )
+
 
     _ssl_close(ssl_sock)
 
