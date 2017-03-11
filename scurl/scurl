@@ -20,6 +20,7 @@ import socket
 
 
 import argparse
+from urlparse import urlparse
 import sys
 
 
@@ -44,7 +45,7 @@ def_ca_path = '/etc/ssl/'
 #=======================================================================================================================
 
 
-# Checks single url for correctness
+# Checks url for correctness
 #
 # Input URL from user can be either in number-and-dots notation, or text notation, this function should convert
 # URL to number-and-dots notation to be properly used.
@@ -56,21 +57,39 @@ def_ca_path = '/etc/ssl/'
 #   reject invalid addresses
 #
 #
-# FIXME - WIP
-#
 def _check_and_format_url( url ):
 
+
+    # URL Parse to get Schema, hostname, port
+    #
+    o = urlparse(url)
+
+    # Scheme Check
+    #
+    if o.scheme != 'https':
+        sys.stderr.write("Invalid URL, not HTTPS Scheme, exiting...\n")
+        exit(1)
+        
+    # check if address is proper - FIXME is hostname all we need?
+    #
     ip_addr = ""
     try:
-        ip_addr = socket.gethostbyname(url)
+        ip_addr = socket.gethostbyname(o.hostname)
     except socket.error:
-        # Not a legal addresses - printout stderr 
-        #
-        sys.stderr.write("Invalid URL, exiting...\n")
+        sys.stderr.write("Invalid URL, address not proper, exiting...\n")
         exit(1)
 
+    # assign port if defined
+    #
+    ip_port = 443;
+    try:
+        if o.port != None:
+            ip_port = o.port
+    except ValueError:
+        sys.stderr.write("Invalid URL, port not proper, exiting...\n")
+        exit(1)
 
-    return ip_addr
+    return (ip_addr, ip_port)
 
 
 # Choose protocol, should just be prot input, otherwise default to tls 1.2
@@ -111,6 +130,8 @@ def _get_context( protocol ):
     #
     context.set_verify(SSL.VERIFY_PEER, _verify)
 
+    context.load_verify_locations('/etc/ssl/cert.pem', '/etc/ssl/')
+
     # add input cert if cacert exists - FIXME
     # FIXME - CRL File 
 
@@ -123,7 +144,13 @@ def _ssl_connect( context, ip_addr, port ):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ssl_sock = SSL.Connection(context, sock)
     ssl_sock.connect((ip_addr, port))  # 443 is default https port
-    ssl_sock.do_handshake()
+    
+    try:
+        ssl_sock.do_handshake()
+    except:
+        sys.stderr.write("SSL do_handshake failed, most likely bad port, exiting...\n")
+        exit(1)
+    
     return ssl_sock
 
 # Close the SSL Socket
@@ -170,6 +197,9 @@ def main():
     descr = 'Secure CURL implementation for CS 255 Project 2: Rick Yan <my259@stanford.edu>'
     parser = argparse.ArgumentParser(description=descr)
 
+    # ARGUMENTS
+    # 
+    # Note - url is setup as a list, but we only need to worry about a single 
     parser.add_argument('--tlsv1.0',           action="store_const", dest="prot", const=0, help='Use TLSv1.0 (SSL)')
     parser.add_argument('--tlsv1.1',           action="store_const", dest="prot", const=1, help='Use TLSv1.1 (SSL)')
     parser.add_argument('--tlsv1.2',           action="store_const", dest="prot", const=2, help='Use TLSv1.2 (SSL)')
@@ -184,10 +214,6 @@ def main():
     args = parser.parse_args()
 
 
-    print args.prot 
-    print "------SETTING UP SSL CONNECTION"
-
-
 
     if (len(args.url) == 0):
         sys.stderr.write("Please Input a URL, use ./scurl --help for more information\n")
@@ -195,10 +221,10 @@ def main():
 
 
     
-    protocol = _choose_protocol( args )
-    url      = _check_and_format_url( args.url[0] )
-    ctx      = _get_context( protocol)
-    ssl_sock = _ssl_connect( ctx, url, 443 )
+    protocol    = _choose_protocol( args )
+    (addr,port) = _check_and_format_url( args.url[0] )
+    ctx         = _get_context( protocol )
+    ssl_sock    = _ssl_connect( ctx, addr, port )
 
     _ssl_close(ssl_sock)
 
