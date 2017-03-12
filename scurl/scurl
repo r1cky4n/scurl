@@ -8,8 +8,6 @@
 #
 #=======================================================================================================================
 
-
-
 #=======================================================================================================================
 # IMPORTS
 #=======================================================================================================================
@@ -17,35 +15,27 @@ import OpenSSL
 from OpenSSL import SSL
 from OpenSSL import crypto
 
-import socket
-
-
-import argparse
 from urlparse import urlparse
+import socket
+import argparse
 import sys
 import time
+from time import gmtime, strftime
 
 #=======================================================================================================================
 # Defines
 #=======================================================================================================================
 
-# Enumeration between different protocol choices -> TLS v1.0-1.2, SSLV3
-#
-def enum(**enums):
-    return type('Enum', (), enums)
-t_protocol = enum(tls_v1p0=0, tls_v1p1=1, tls_v1p2=2, ssl_v3=3)
-
-
-# FIXME - for OSX, need to change on CORN
-def_ca_file = '/etc/ssl/cert.pem' 
-def_ca_path = '/etc/ssl/'
-
 # HTTP Request Ending 
 #
 CRLF = '\r\n\r\n'
 
+# global variable so the _stale_cert_check handler can have a proper reference
+#
+staleN = -1
+
 #=======================================================================================================================
-# Internal Functions
+# Parse Input Arguments and format properly
 #=======================================================================================================================
 
 
@@ -134,6 +124,9 @@ def _load_crl( crlfile ):
 
     return crl_object
 
+#=======================================================================================================================
+# Create SSL Context and Connection
+#=======================================================================================================================
 
 # Sets up Context, Returns Context
 # FIXME - input parameters
@@ -150,9 +143,9 @@ def _get_context( protocol, cacert, crl ):
     try:
         context.load_verify_locations('/etc/ssl/cert.pem', None)
     except:
-        # FIXME - will remove, but keep this here for proper OSX functionality
+        # FIXME - will remove, but keep this here for proper OSX/Unix functionality
         #
-        continue
+        pass
 
     # Add list of trusted CAs
     #
@@ -220,7 +213,7 @@ def _check_cert( ssl_sock ):
     cert = ssl_sock.get_peer_certificate()
     common_name = cert.get_subject().commonName.decode()
 
-    print cert.get_subject().get_components()
+    #print cert.get_subject().get_components()
 
     return cert
 
@@ -228,25 +221,55 @@ def _check_cert( ssl_sock ):
 # Certificate Verification Function
 #=======================================================================================================================
 
+# use UTC time
+#
+def _stale_cert_check( cert ):
+    if staleN == -1: # allow-stale not set, check should fail
+        return False
 
+    # hacky - get day from gmtime, modify it, and create the timestamp string
+    #
+    currDay = int(strftime("%d", gmtime()))
+    extDay  = currDay + staleN
+    extT1   = strftime("%Y%m", gmtime())
+    extT2   = strftime("%H%M%SZ", gmtime())
+    extTime = extT1 + str(extDay) + extT2
+
+    expireDate = cert.get_notAfter()
+
+    #print expireDate
+    #print extTime
+
+    if expireDate <=extTime:
+        return True
+    else:
+        return False
+
+
+
+# Verify will immediately fail if any errno != 10 is encountered
+#
+# error 10 (Cert Expired) is allow_stale_certs is specified, and a range check will be performed 
+#  
+#
 def _verify(conn, cert, errno, depth, result):
-    #print "ssl callback"
-
+    #print
     #print conn
-    #print 
     #print cert
-    #print
-    print errno
-    #print 
-    print depth
-    #print
-    print result
+    #print errno
+    #print depth
+    #print result
+    #print "-------------------------------"
 
-    print "-------------------------------"
+    # If error 10 (Cert Expired) - let stale_cert_check qualify again
+    #
+    if errno == 10:
+        return _stale_cert_check( cert )
 
-
-    if depth == 0 and (errno == 9 or errno == 10):
-        return False # or raise Exception("Certificate not yet valid or expired")
+    # all other errors will cause failure
+    #
+    if errno != 0:
+        return False
     return True
 
 
@@ -277,7 +300,6 @@ def recv_with_timeout(ssl_sock,timeout=2):
         # if you got no data at all, wait a little longer, twice the timeout
         #
         elif (time.time()-begin) > timeout*2:
-            print 'error!!'
             break
          
         # recv something
@@ -307,12 +329,13 @@ def recv_with_timeout(ssl_sock,timeout=2):
 #
 def _get_data( ssl_sock ):
 
-    get_req = 'GET / HTTP/1.0' + CRLF
+    # FIXME - proper GET Command
+    get_req = 'GET / HTTP/1.1' + CRLF
 
     ssl_sock.send(get_req)
     
-    print "---------------------"
-    print
+    #print "---------------------"
+    #print
    
 
     data = recv_with_timeout( ssl_sock )
@@ -340,7 +363,7 @@ def main():
     parser.add_argument('--ciphers',           help='SSL ciphers to use (SSL)')
     parser.add_argument('--crlfile',           help='Get a CRL list in PEM format from the given file')
     parser.add_argument('--cacert',            help='CA certificate to verify peer against (SSL)')
-    parser.add_argument('--allow-stale-certs', dest="staleN",  help='Allow stale certificate less than N days old to be used')
+    parser.add_argument('--allow-stale-certs', type=int, dest="staleN",  help='Allow stale certificate less than N days old to be used')
     parser.add_argument('--pinnedcertificate', help='Only send data to authenticated server, overrides --cacert and --crlfile')
     parser.add_argument('url',                 nargs="*", help='URL target')
 
@@ -361,6 +384,18 @@ def main():
     crl         = _load_crl(args.crlfile)
     cacert      = args.cacert 
     
+    # allow-stale-certs check - must be integer input
+    # 
+    global staleN
+    if args.staleN != None:
+        if args.staleN >= 0:
+            staleN = args.staleN
+        else:
+            sys.stderr.write("--allow-stale-certs accepts a positive integer value only...\n")
+            exit(1)
+
+    print staleN
+    print "++++++++++"
     
     
     
@@ -368,7 +403,7 @@ def main():
 
 
     ssl_sock    = _ssl_connect( ctx, addr, port )
-    cert        = _get_cert( ssl_sock )
+    cert        = _check_cert( ssl_sock )
 
     _get_data( ssl_sock )
 
