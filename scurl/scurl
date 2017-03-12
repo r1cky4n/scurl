@@ -82,7 +82,13 @@ def _check_and_format_url( url ):
         sys.stderr.write("Invalid URL, port not proper, exiting...\n")
         exit(1)
 
-    return (ip_addr, ip_port)
+    # assign path if defined
+    #
+    ip_path = "/"
+    if o.path != "":
+        ip_path = o.path
+
+    return (ip_addr, ip_port, ip_path)
 
 
 # Choose protocol, should just be prot input, otherwise default to tls 1.2
@@ -327,10 +333,10 @@ def recv_with_timeout(ssl_sock,timeout=2):
 
 # Format the HTTP GET Request through SSL.CONNECTION
 #
-def _get_data( ssl_sock ):
+def _get_data( ssl_sock, path ):
 
     # FIXME - proper GET Command
-    get_req = 'GET / HTTP/1.1' + CRLF
+    get_req = 'GET '+path+' HTTP/1.0' + CRLF
 
     ssl_sock.send(get_req)
     
@@ -339,7 +345,7 @@ def _get_data( ssl_sock ):
    
 
     data = recv_with_timeout( ssl_sock )
-    #print data
+    print data
    
 
     
@@ -377,10 +383,10 @@ def main():
     # Initial parse of the input data
     #==============================================================
     
-    protocol    = _choose_protocol( args )
-    (addr,port) = _check_and_format_url( args.url[0] )
-    crl         = _load_crl(args.crlfile)
-    cacert      = args.cacert 
+    protocol            = _choose_protocol( args )
+    (addr,port,path)    = _check_and_format_url( args.url[0] )
+    crl                 = _load_crl(args.crlfile)
+    cacert              = args.cacert 
     
     # allow-stale-certs check - must be integer input
     # 
@@ -402,7 +408,7 @@ def main():
     ssl_sock    = _ssl_connect( ctx, addr, port )
     cert        = _check_cert( ssl_sock )
 
-    _get_data( ssl_sock )
+    _get_data( ssl_sock, path )
 
 
     _ssl_close(ssl_sock)
