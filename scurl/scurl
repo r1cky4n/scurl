@@ -369,16 +369,14 @@ def main():
 
     args = parser.parse_args()
 
-
-
     if (len(args.url) == 0):
         sys.stderr.write("Please Input a URL, use ./scurl --help for more information\n")
         exit(1)
 
-
-   
+    #==============================================================
     # Initial parse of the input data
-    #
+    #==============================================================
+    
     protocol    = _choose_protocol( args )
     (addr,port) = _check_and_format_url( args.url[0] )
     crl         = _load_crl(args.crlfile)
@@ -394,10 +392,9 @@ def main():
             sys.stderr.write("--allow-stale-certs accepts a positive integer value only...\n")
             exit(1)
 
-    print staleN
-    print "++++++++++"
-    
-    
+    #==============================================================
+    # Set up SSL Connection and perform HTTP GET
+    #==============================================================
     
     ctx         = _get_context( protocol, cacert, crl )
 
