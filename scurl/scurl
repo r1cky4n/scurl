@@ -21,6 +21,8 @@ import argparse
 import sys
 import time
 from time import gmtime, strftime
+import re
+
 
 #=======================================================================================================================
 # Defines
@@ -333,20 +335,33 @@ def recv_with_timeout(ssl_sock,timeout=2):
 
 # Format the HTTP GET Request through SSL.CONNECTION
 #
-def _get_data( ssl_sock, path ):
+def _get_data( ssl_sock, addr, path ):
 
     # FIXME - proper GET Command
-    get_req = 'GET '+path+' HTTP/1.0' + CRLF
+    http_get  = 'GET '+path+' HTTP/1.0\r\n'
+    http_host = 'HOST:'+addr+'\r\n'
+    http_user = 'User-Agent: cs255_my259_scurl\r\n'
+    http_conn = 'Connection: close\r\n'
 
-    ssl_sock.send(get_req)
+    http_req  = http_get+http_host+http_user+http_conn+'\r\n'
+
+
+    ssl_sock.send(http_req)
     
     #print "---------------------"
     #print
    
 
-    data = recv_with_timeout( ssl_sock )
-    print data
+    full_data = recv_with_timeout( ssl_sock )
+
+    # remove the HTTP Header
+    #
+    hdrend = re.compile(r'\r\n\r\n')
+
+    data = hdrend.split(full_data, 1)
    
+    sys.stdout.write(data[1])
+    return data[1]
 
     
 
@@ -382,7 +397,6 @@ def main():
     #==============================================================
     # Initial parse of the input data
     #==============================================================
-    
     protocol            = _choose_protocol( args )
     (addr,port,path)    = _check_and_format_url( args.url[0] )
     crl                 = _load_crl(args.crlfile)
@@ -408,7 +422,7 @@ def main():
     ssl_sock    = _ssl_connect( ctx, addr, port )
     cert        = _check_cert( ssl_sock )
 
-    _get_data( ssl_sock, path )
+    _get_data( ssl_sock, addr, path )
 
 
     _ssl_close(ssl_sock)
