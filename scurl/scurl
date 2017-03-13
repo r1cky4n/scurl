@@ -109,8 +109,8 @@ def _choose_protocol( args ):
     elif args.prot == 3:
         return SSL.SSLv3_METHOD
     else:
-        #return SSL.TLSv1_2_METHOD 
-        return SSL.TLSv1_METHOD #FIXME - make it 1.2 default, for now it keep 1.0 so we can develop off of corn
+        return SSL.TLSv1_2_METHOD 
+        #return SSL.TLSv1_METHOD #FIXME - make it 1.2 default, for now it keep 1.0 so we can develop off of corn
 
 
 # load crl.pem file, output x509 representation
@@ -152,12 +152,12 @@ def _get_context( protocol, cacert, crl ):
 
     # FIXME - mimic OSX default verify path proper behavior - will comment out
     #
-    try:
-        context.load_verify_locations('/etc/ssl/cert.pem', None)
-    except:
-        # FIXME - will remove, but keep this here for proper OSX/Unix functionality
-        #
-        pass
+#    try:
+#        context.load_verify_locations('/etc/ssl/cert.pem', None)
+#    except:
+#        # FIXME - will remove, but keep this here for proper OSX/Unix functionality
+#        #
+#        pass
 
     # Add list of trusted CAs
     #
@@ -220,6 +220,7 @@ def _ssl_close( ssl_sock ):
 
 
 # Get the Certificate from the Connected Server
+#   FIXME - do pinned cert check here
 #
 def _check_cert( ssl_sock ):
     cert = ssl_sock.get_peer_certificate()
