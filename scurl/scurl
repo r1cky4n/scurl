@@ -90,7 +90,11 @@ def _check_and_format_url( url ):
     if o.path != "":
         ip_path = o.path
 
-    return (ip_addr, ip_port, ip_path)
+    # output plaintext addr
+    #
+    host_pt = o.hostname
+
+    return (ip_addr, ip_port, ip_path, host_pt)
 
 
 # Choose protocol, should just be prot input, otherwise default to tls 1.2
@@ -332,35 +336,34 @@ def recv_with_timeout(ssl_sock,timeout=2):
     return ''.join(total_data)
 
 
-
 # Format the HTTP GET Request through SSL.CONNECTION
 #
-def _get_data( ssl_sock, addr, path ):
+def _get_data( ssl_sock, host, path ):
 
-    # FIXME - proper GET Command
-    http_get  = 'GET '+path+' HTTP/1.0\r\n'
-    http_host = 'HOST:'+addr+'\r\n'
-    http_user = 'User-Agent: cs255_my259_scurl\r\n'
+    # FIXME - proper GET Command - doublecheck this
+    #
+    http_get  = 'GET '+path+' HTTP/1.1\r\n'
+    http_host = 'HOST: '+host+'\r\n'
+    http_user = 'User-Agent: curl/7.53.1\r\n'
+    http_acc  = 'Accept: */*\r\n'
     http_conn = 'Connection: close\r\n'
-
-    http_req  = http_get+http_host+http_user+http_conn+'\r\n'
-
+    http_req  = http_get+http_host+http_user+http_acc+http_conn+'\r\n'
 
     ssl_sock.send(http_req)
-    
-    #print "---------------------"
-    #print
-   
-
     full_data = recv_with_timeout( ssl_sock )
 
     # remove the HTTP Header
     #
     hdrend = re.compile(r'\r\n\r\n')
-
-    data = hdrend.split(full_data, 1)
+    data   = hdrend.split(full_data, 1)
    
     sys.stdout.write(data[1])
+
+    #print http_req
+    #print "-----"
+    #print data[0]
+
+
     return data[1]
 
     
@@ -397,10 +400,10 @@ def main():
     #==============================================================
     # Initial parse of the input data
     #==============================================================
-    protocol            = _choose_protocol( args )
-    (addr,port,path)    = _check_and_format_url( args.url[0] )
-    crl                 = _load_crl(args.crlfile)
-    cacert              = args.cacert 
+    protocol                = _choose_protocol( args )
+    (addr,port,path,host)   = _check_and_format_url( args.url[0] )
+    crl                     = _load_crl(args.crlfile)
+    cacert                  = args.cacert 
     
     # allow-stale-certs check - must be integer input
     # 
@@ -422,7 +425,7 @@ def main():
     ssl_sock    = _ssl_connect( ctx, addr, port )
     cert        = _check_cert( ssl_sock )
 
-    _get_data( ssl_sock, addr, path )
+    _get_data( ssl_sock, host, path )
 
 
     _ssl_close(ssl_sock)
