@@ -108,8 +108,8 @@ def _choose_protocol( args ):
     elif args.prot == 3:
         return SSL.SSLv3_METHOD
     else:
-        #return SSL.TLSv1_2_METHOD 
-        return SSL.TLSv1_METHOD #FIXME - make it 1.2 default, for now it keep 1.0 so we can develop off of corn
+        return SSL.TLSv1_2_METHOD 
+        #return SSL.TLSv1_METHOD #FIXME - make it 1.2 default, for now it keep 1.0 so we can develop off of corn
 
 
 # load crl.pem file, output x509 representation
@@ -230,7 +230,8 @@ def _check_cert( ssl_sock ):
     cert = ssl_sock.get_peer_certificate()
     common_name = cert.get_subject().commonName.decode()
 
-    #print cert.get_subject().get_components()
+    print "+++++++++"
+    print cert.get_subject().get_components()
 
     return cert
 
@@ -238,6 +239,8 @@ def _check_cert( ssl_sock ):
 # Certificate Verification Function
 #=======================================================================================================================
 
+# supplemental certificate parsing function for debug
+# 
 def _pyopenssl_cert_or_req_san(cert_or_req):
     """Get Subject Alternative Names from certificate or CSR using pyOpenSSL.
     .. todo:: Implement directly in PyOpenSSL!
@@ -267,16 +270,18 @@ def _pyopenssl_cert_or_req_san(cert_or_req):
     # WARNING: this function does not support multiple SANs extensions.
     # Multiple X509v3 extensions of the same type is disallowed by RFC 5280.
     match = re.search(r"X509v3 Subject Alternative Name:\s*(.*)", text)
+    
+    # Printout
     print
     print text
     print
+
     # WARNING: this function assumes that no SAN can include
     # parts_separator, hence the split!
     sans_parts = [] if match is None else match.group(1).split(parts_separator)
 
     return [part.split(part_separator)[1]
             for part in sans_parts if part.startswith(prefix)]
-
 
 # use UTC time
 #
@@ -287,11 +292,11 @@ def _stale_cert_check( cert ):
     # Adjust the expiration time by +N days, check against current time
     #
     cert.gmtime_adj_notAfter( 86400 * staleN )
-    expireDate = cert.get_notAfter()
+    #expireDate = cert.get_notAfter()
 
     # hacky - get day from gmtime, modify it, and create the timestamp string
     #
-    currDate   = strftime("Y%m%d%H%M%SZ", gmtime())
+    #currDate   = strftime("Y%m%d%H%M%SZ", gmtime())
 
     #print expireDate
     #print extTime
@@ -305,6 +310,7 @@ def _stale_cert_check( cert ):
         return False
     else:
         return True
+
 
 
 
@@ -335,8 +341,6 @@ def _verify(conn, cert, errno, depth, result):
     #san = _pyopenssl_cert_or_req_san(cert)
     #print san
 
-
-
     # If error 10 (Cert Expired) - let stale_cert_check qualify again
     #
     if errno == 10:
@@ -345,7 +349,7 @@ def _verify(conn, cert, errno, depth, result):
     # all other errors will cause failure
     #
     if errno != 0:
-        return True
+        return False
     return True
 
 
@@ -421,7 +425,7 @@ def _get_data( ssl_sock, host, path ):
     hdrend = re.compile(r'\r\n\r\n')
     data   = hdrend.split(full_data, 1)
    
-    sys.stdout.write(data[1])
+    #sys.stdout.write(data[1])
 
     #print http_req
     #print "-----"
