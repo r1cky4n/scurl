@@ -23,7 +23,6 @@ import time
 from time import gmtime, strftime
 import re
 
-
 #=======================================================================================================================
 # Defines
 #=======================================================================================================================
@@ -109,8 +108,8 @@ def _choose_protocol( args ):
     elif args.prot == 3:
         return SSL.SSLv3_METHOD
     else:
-        return SSL.TLSv1_2_METHOD 
-        #return SSL.TLSv1_METHOD #FIXME - make it 1.2 default, for now it keep 1.0 so we can develop off of corn
+        #return SSL.TLSv1_2_METHOD 
+        return SSL.TLSv1_METHOD #FIXME - make it 1.2 default, for now it keep 1.0 so we can develop off of corn
 
 
 # load crl.pem file, output x509 representation
@@ -155,17 +154,10 @@ def _get_context( protocol, cacert, crl ):
 
     # use platform certificates
     #
-    #context.set_default_verify_paths()
-    context.load_verify_locations('/etc/ssl/certs/ca-certificates.crt', None)
+    context.set_default_verify_paths()
+    #context.load_verify_locations('/etc/ssl/certs/ca-certificates.crt', None)
+    #context.load_verify_locations('/etc/ssl/cert.pem', None)
 
-    # FIXME - mimic OSX default verify path proper behavior - will comment out
-    #
-#    try:
-#        context.load_verify_locations('/etc/ssl/cert.pem', None)
-#    except:
-#        # FIXME - will remove, but keep this here for proper OSX/Unix functionality
-#        #
-#        pass
 
     # Add list of trusted CAs
     #
@@ -208,11 +200,12 @@ def _get_context( protocol, cacert, crl ):
 
 # Sets up SSL Connection, Does Handshake, Returns SSL Socket
 #
-def _ssl_connect( context, ip_addr, port ):
+def _ssl_connect( context, ip_addr, port, host ):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ssl_sock = SSL.Connection(context, sock)
     ssl_sock.connect((ip_addr, port))  # 443 is default https port
-    
+    ssl_sock.set_tlsext_host_name(host)
+
     #print ssl_sock.get_cipher_list()
     #print
 
@@ -245,29 +238,73 @@ def _check_cert( ssl_sock ):
 # Certificate Verification Function
 #=======================================================================================================================
 
+def _pyopenssl_cert_or_req_san(cert_or_req):
+    """Get Subject Alternative Names from certificate or CSR using pyOpenSSL.
+    .. todo:: Implement directly in PyOpenSSL!
+    .. note:: Although this is `acme` internal API, it is used by
+        `letsencrypt`.
+    :param cert_or_req: Certificate or CSR.
+    :type cert_or_req: `OpenSSL.crypto.X509` or `OpenSSL.crypto.X509Req`.
+    :returns: A list of Subject Alternative Names.
+    :rtype: `list` of `unicode`
+    """
+    # This function finds SANs by dumping the certificate/CSR to text and
+    # searching for "X509v3 Subject Alternative Name" in the text. This method
+    # is used to support PyOpenSSL version 0.13 where the
+    # `_subjectAltNameString` and `get_extensions` methods are not available
+    # for CSRs.
+
+    # constants based on PyOpenSSL certificate/CSR text dump
+    part_separator = ":"
+    parts_separator = ", "
+    prefix = "DNS" + part_separator
+
+    if isinstance(cert_or_req, OpenSSL.crypto.X509):
+        func = OpenSSL.crypto.dump_certificate
+    else:
+        func = OpenSSL.crypto.dump_certificate_request
+    text = func(OpenSSL.crypto.FILETYPE_TEXT, cert_or_req).decode("utf-8")
+    # WARNING: this function does not support multiple SANs extensions.
+    # Multiple X509v3 extensions of the same type is disallowed by RFC 5280.
+    match = re.search(r"X509v3 Subject Alternative Name:\s*(.*)", text)
+    print
+    print text
+    print
+    # WARNING: this function assumes that no SAN can include
+    # parts_separator, hence the split!
+    sans_parts = [] if match is None else match.group(1).split(parts_separator)
+
+    return [part.split(part_separator)[1]
+            for part in sans_parts if part.startswith(prefix)]
+
+
 # use UTC time
 #
 def _stale_cert_check( cert ):
     if staleN == -1: # allow-stale not set, check should fail
         return False
 
+    # Adjust the expiration time by +N days, check against current time
+    #
+    cert.gmtime_adj_notAfter( 86400 * staleN )
+    expireDate = cert.get_notAfter()
+
     # hacky - get day from gmtime, modify it, and create the timestamp string
     #
-    currDay = int(strftime("%d", gmtime()))
-    extDay  = currDay + staleN
-    extT1   = strftime("%Y%m", gmtime())
-    extT2   = strftime("%H%M%SZ", gmtime())
-    extTime = extT1 + str(extDay) + extT2
-
-    expireDate = cert.get_notAfter()
+    currDate   = strftime("Y%m%d%H%M%SZ", gmtime())
 
     #print expireDate
     #print extTime
 
-    if expireDate <=extTime:
-        return True
-    else:
+    #if expireDate <= currDate:
+    #    return True
+    #else:
+    #    return False
+
+    if cert.has_expired():
         return False
+    else:
+        return True
 
 
 
@@ -277,15 +314,27 @@ def _stale_cert_check( cert ):
 #  
 #
 def _verify(conn, cert, errno, depth, result):
-    print errno
-    print depth
-    print result
-    print "-------------------------------"
+    #print
+    #print errno
+    #print depth
+    #print result
+    #print "-------------------------------"
 
-    print "issuer"
-    print cert.get_issuer().get_components()
-    print "subject"
-    print cert.get_subject().get_components()
+    #print "issuer"
+    #issuer = cert.get_issuer().get_components()
+    #print issuer
+    #print "subject"
+    #print cert.get_subject().get_components()
+
+    #extcount = cert.get_extension_count()
+    #for i in range(0,extcount):
+    #    ext = cert.get_extension(i)
+    #    print ext.__str__()
+
+    #print
+    #san = _pyopenssl_cert_or_req_san(cert)
+    #print san
+
 
 
     # If error 10 (Cert Expired) - let stale_cert_check qualify again
@@ -296,7 +345,7 @@ def _verify(conn, cert, errno, depth, result):
     # all other errors will cause failure
     #
     if errno != 0:
-        return False
+        return True
     return True
 
 
@@ -388,9 +437,20 @@ def _get_data( ssl_sock, host, path ):
 # Main and Argument Parse
 #=======================================================================================================================
 
+# Used to create single line argparse error outputs
+#
+class ArgumentParserError(Exception): pass
+
+class ThrowingArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        raise ArgumentParserError(message)
+
+
 def main():
     descr = 'Secure CURL implementation for CS 255 Project 2: Rick Yan <my259@stanford.edu>'
-    parser = argparse.ArgumentParser(description=descr)
+    #parser = argparse.ArgumentParser(description=descr)
+    parser = ThrowingArgumentParser(description=descr)
+
 
     # ARGUMENTS
     # 
@@ -406,7 +466,14 @@ def main():
     parser.add_argument('--pinnedcertificate', help='Only send data to authenticated server, overrides --cacert and --crlfile')
     parser.add_argument('url',                 nargs="*", help='URL target')
 
-    args = parser.parse_args()
+
+    try:
+        args = parser.parse_args()
+    except:
+        sys.stderr.write("use ./scurl --help for more information\n")
+        exit(1)
+
+
 
     if (len(args.url) == 0):
         sys.stderr.write("Please Input a URL, use ./scurl --help for more information\n")
@@ -437,7 +504,7 @@ def main():
     ctx         = _get_context( protocol, cacert, crl )
 
 
-    ssl_sock    = _ssl_connect( ctx, addr, port )
+    ssl_sock    = _ssl_connect( ctx, addr, port, host )
     cert        = _check_cert( ssl_sock )
 
     _get_data( ssl_sock, host, path )
