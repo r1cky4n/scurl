@@ -116,19 +116,26 @@ def _choose_protocol( args ):
 # load crl.pem file, output x509 representation
 #
 def _load_crl( crlfile ):
-
     if crlfile == None:
         return None
 
     crl_pem = ""
-    with open(crlfile, 'r') as _crl_file:
-        crl_pem = "".join(_crl_file.readlines()) 
+    try: 
+        with open(crlfile, 'r') as _crl_file:
+            crl_pem = "".join(_crl_file.readlines()) 
+    except:
+        # issue with crlfile - ignore it
+        #
+        return None
 
     try:
         crl_object = OpenSSL.crypto.load_crl(OpenSSL.crypto.FILETYPE_PEM, crl_pem)
     except Exception as e:
-        sys.stderr.write("CRLFILE Parse failed: "+str(e)+"\n")
-        exit(1)
+        #sys.stderr.write("CRLFILE Parse failed: "+str(e)+"\n")
+        #exit(1)
+        # issue with crlfile - ignore it
+        #
+        return None
 
     #revoked_objects = crl_object.get_revoked()
     #for rvk in revoked_objects:
@@ -148,7 +155,8 @@ def _get_context( protocol, cacert, crl ):
 
     # use platform certificates
     #
-    context.set_default_verify_paths()
+    #context.set_default_verify_paths()
+    context.load_verify_locations('/etc/ssl/certs/ca-certificates.crt', None)
 
     # FIXME - mimic OSX default verify path proper behavior - will comment out
     #
@@ -205,6 +213,9 @@ def _ssl_connect( context, ip_addr, port ):
     ssl_sock = SSL.Connection(context, sock)
     ssl_sock.connect((ip_addr, port))  # 443 is default https port
     
+    #print ssl_sock.get_cipher_list()
+    #print
+
     try:
         ssl_sock.do_handshake()
     except Exception as e:
@@ -266,13 +277,16 @@ def _stale_cert_check( cert ):
 #  
 #
 def _verify(conn, cert, errno, depth, result):
-    #print
-    #print conn
-    #print cert
-    #print errno
-    #print depth
-    #print result
-    #print "-------------------------------"
+    print errno
+    print depth
+    print result
+    print "-------------------------------"
+
+    print "issuer"
+    print cert.get_issuer().get_components()
+    print "subject"
+    print cert.get_subject().get_components()
+
 
     # If error 10 (Cert Expired) - let stale_cert_check qualify again
     #
