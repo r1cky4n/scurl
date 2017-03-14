@@ -111,6 +111,7 @@ def _choose_protocol( args ):
     elif args.prot == 3:
         return SSL.SSLv3_METHOD
     else:
+        #return SSL.TLSv1_METHOD
         return SSL.TLSv1_2_METHOD 
 
 
@@ -229,7 +230,7 @@ def _ssl_close( ssl_sock ):
 # Get the Certificate from the Connected Server
 #   Manual Check for Pinned Certificate
 #
-def _check_cert( ssl_sock, pcert ):
+def _pin_check_cert( ssl_sock, pcert ):
     cert = ssl_sock.get_peer_certificate()
     common_name = cert.get_subject().commonName.decode()
 
@@ -252,20 +253,28 @@ def _check_cert( ssl_sock, pcert ):
         sys.stderr.write("PCERT Parse failed: "+str(e)+"\n")
         exit(1)
 
+    # Verbose output of certificates - for DEBUG ONLY
+    #
+    #_pyopenssl_cert_or_req_san(pcert_obj)
+    #print "-----------------------------"
+    #print "-----------------------------"
+    #_pyopenssl_cert_or_req_san(cert)
 
-    _pyopenssl_cert_or_req_san(pcert_obj)
-    print "-----------------------------"
-    print "-----------------------------"
-    _pyopenssl_cert_or_req_san(cert)
+    # SHA256 HASH of the certificates
+    #
+    p_digest = pcert_obj.digest("sha256")
+    digest   = cert.digest("sha256")
 
-    #print "+++++++++"
-    #print cert.get_subject().get_components()
-    #print common_name
+    #print p_digest
+    #print digest
 
-    #_check_san_wc( common_name, host )
+    if p_digest != digest:
+        sys.stderr.write("Pinned Certificate Check Failed!\n")
+        exit(1)
 
-
-    return cert
+    # pinned certificate passed
+    #
+    return True
 
 #=======================================================================================================================
 # Certificate Verification Function
@@ -512,7 +521,7 @@ def _get_data( ssl_sock, host, path ):
    
     # Write Out HTTP GET Results
     #
-    #sys.stdout.write(data[1])
+    sys.stdout.write(data[1])
 
     #print http_req
     #print "-----"
@@ -592,7 +601,7 @@ def main():
     
     ctx         = _get_context( protocol, cacert, ciphers, pcert )
     ssl_sock    = _ssl_connect( ctx, addr, port, host )
-    cert        = _check_cert( ssl_sock, pcert )
+    pin_pass    = _pin_check_cert( ssl_sock, pcert )
     data        = _get_data( ssl_sock, host, path )
     _ssl_close(ssl_sock)
 
