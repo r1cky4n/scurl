@@ -35,6 +35,14 @@ CRLF = '\r\n\r\n'
 #
 staleN = -1
 
+# global hostname reference
+#
+host = ""
+
+# global revocation serial ids
+#
+revoke_serial = []
+
 #=======================================================================================================================
 # Parse Input Arguments and format properly
 #=======================================================================================================================
@@ -125,20 +133,23 @@ def _load_crl( crlfile ):
     except:
         # issue with crlfile - ignore it
         #
-        return None
+        sys.stderr.write("CRLFILE OPEN failed:\n")
+        exit(1)
+        #return None
 
     try:
         crl_object = OpenSSL.crypto.load_crl(OpenSSL.crypto.FILETYPE_PEM, crl_pem)
     except Exception as e:
-        #sys.stderr.write("CRLFILE Parse failed: "+str(e)+"\n")
-        #exit(1)
+        sys.stderr.write("CRLFILE Parse failed: "+str(e)+"\n")
+        exit(1)
         # issue with crlfile - ignore it
         #
-        return None
+        #return None
 
-    #revoked_objects = crl_object.get_revoked()
-    #for rvk in revoked_objects:
-    #    print "Serial:", rvk.get_serial()
+    revoked_objects = crl_object.get_revoked()
+    for rvk in revoked_objects:
+        #print "Serial:", rvk.get_serial()
+        revoke_serial.append(rvk.get_serial())
 
     return crl_object
 
@@ -170,13 +181,13 @@ def _get_context( protocol, cacert, crl ):
     
     # Add CRL to Store
     #
-    store = context.get_cert_store()
-    if crl != None:
-        try:
-            store.add_crl( crl )
-        except Exception as e:
-            sys.stderr.write("Add CRL failed: "+str(e)+"\n")
-            exit(1)
+    #store = context.get_cert_store()
+    #if crl != None:
+    #    try:
+    #        store.add_crl( crl )
+    #    except Exception as e:
+    #        sys.stderr.write("Add CRL failed: "+str(e)+"\n")
+    #        exit(1)
 
 
     # FIXME - check options
@@ -203,16 +214,16 @@ def _get_context( protocol, cacert, crl ):
 def _ssl_connect( context, ip_addr, port, host ):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ssl_sock = SSL.Connection(context, sock)
-    ssl_sock.connect((ip_addr, port))  # 443 is default https port
-    ssl_sock.set_tlsext_host_name(host)
 
     #print ssl_sock.get_cipher_list()
     #print
 
     try:
+        ssl_sock.connect((ip_addr, port))  # 443 is default https port
+        ssl_sock.set_tlsext_host_name(host)
         ssl_sock.do_handshake()
     except Exception as e:
-        sys.stderr.write("SSL do_handshake failed: "+str(e)+"\n")
+        sys.stderr.write("SSL Connection/do_handshake failed: "+str(e)+"\n")
         exit(1)
     
     return ssl_sock
@@ -223,6 +234,10 @@ def _ssl_close( ssl_sock ):
     ssl_sock.close()
 
 
+
+
+
+
 # Get the Certificate from the Connected Server
 #   FIXME - do pinned cert check here
 #
@@ -230,14 +245,50 @@ def _check_cert( ssl_sock ):
     cert = ssl_sock.get_peer_certificate()
     common_name = cert.get_subject().commonName.decode()
 
-    print "+++++++++"
-    print cert.get_subject().get_components()
+    #print "+++++++++"
+    #print cert.get_subject().get_components()
+    #print common_name
+
+    #_check_san_wc( common_name, host )
+
 
     return cert
 
 #=======================================================================================================================
 # Certificate Verification Function
 #=======================================================================================================================
+
+# wildcard check on Server's Certificate to insure Subject Alternative Name is proper
+#
+def _check_san_wc( cn, host ):
+    scn     = str(cn)
+
+    # compare scn with host, if full match, pass
+    # 
+    if scn == host:
+        return True
+
+    # break down name, do WC check
+    #
+    dot     = re.compile('\.')
+    host_pt = dot.split(host, 1)
+    cn_pt   = dot.split(scn, 1)
+
+    rxString = cn_pt[0].replace("*",".+")
+    regex    = re.compile(rxString)
+
+    #print host_pt
+    #print scn
+    #print cn_pt
+    #print rxString
+
+    matches = (regex.match(host_pt[0]) and (host_pt[1]==cn_pt[1])) or ((cn_pt[0]=="*") and (host==cn_pt[1]))
+
+    #if regex.match(host_pt[0]) and (host_pt[1] == cn_pt[1]):
+    if matches:
+        return True
+    else:
+        return False
 
 # supplemental certificate parsing function for debug
 # 
@@ -350,6 +401,20 @@ def _verify(conn, cert, errno, depth, result):
     #
     if errno != 0:
         return False
+
+    # if depth==0 (server's certificate), also do the wildcard certificate check
+    #
+    if depth == 0:
+        common_name = cert.get_subject().commonName.decode()
+        return _check_san_wc( common_name, host )
+
+
+    # check serial number against revocation list
+    #
+    serial = cert.get_serial_number();
+    if serial in revoke_serial:
+        return False
+
     return True
 
 
@@ -425,12 +490,11 @@ def _get_data( ssl_sock, host, path ):
     hdrend = re.compile(r'\r\n\r\n')
     data   = hdrend.split(full_data, 1)
    
-    #sys.stdout.write(data[1])
+    sys.stdout.write(data[1])
 
     #print http_req
     #print "-----"
     #print data[0]
-
 
     return data[1]
 
@@ -486,6 +550,9 @@ def main():
     #==============================================================
     # Initial parse of the input data
     #==============================================================
+    global host
+    global staleN
+
     protocol                = _choose_protocol( args )
     (addr,port,path,host)   = _check_and_format_url( args.url[0] )
     crl                     = _load_crl(args.crlfile)
@@ -493,7 +560,6 @@ def main():
     
     # allow-stale-certs check - must be integer input
     # 
-    global staleN
     if args.staleN != None:
         if args.staleN >= 0:
             staleN = args.staleN
