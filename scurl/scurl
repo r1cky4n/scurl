@@ -160,15 +160,8 @@ def _load_crl( crlfile ):
 # Sets up Context, Returns Context
 # FIXME - input parameters
 #
-def _get_context( protocol, cacert, crl ):
+def _get_context( protocol, cacert, ciphers, pcert ):
     context = SSL.Context(protocol)
-
-    # use platform certificates
-    #
-    context.set_default_verify_paths()
-    #context.load_verify_locations('/etc/ssl/certs/ca-certificates.crt', None)
-    #context.load_verify_locations('/etc/ssl/cert.pem', None)
-
 
     # Add list of trusted CAs
     #
@@ -178,19 +171,30 @@ def _get_context( protocol, cacert, crl ):
         except Exception as e:
             sys.stderr.write("Add CACERT failed: "+str(e)+"\n")
             exit(1)
-    
-    # Add CRL to Store
+    else:
+        # use default platform certificates
+        #
+        context.set_default_verify_paths()
+        #context.load_verify_locations('/etc/ssl/certs/ca-certificates.crt', None)
+        #context.load_verify_locations('/etc/ssl/cert.pem', None)
+
+    # Add list of Ciphers
     #
-    #store = context.get_cert_store()
-    #if crl != None:
-    #    try:
-    #        store.add_crl( crl )
-    #    except Exception as e:
-    #        sys.stderr.write("Add CRL failed: "+str(e)+"\n")
-    #        exit(1)
+    if ciphers != None:
+        try:
+            context.set_cipher_list( ciphers )
+        except Exception as e:
+            sys.stderr.write("Add CIPHERS failed: "+str(e)+"\n")
+            exit(1)
+    
+    # if pinned certificate is set, set to VERIFY_NONE to ignore the verify handler's results. Cert check will be
+    # done manually by _check_cert
+    #
+    ver_mode = SSL.VERIFY_PEER
+    if pcert != None:
+        ver_mode = SSL.VERIFY_NONE
 
-
-    # FIXME - check options
+    # Additional Options
     #
     context.set_options(SSL.OP_NO_SSLv2) # Don't accept SSLv2
 
@@ -204,7 +208,7 @@ def _get_context( protocol, cacert, crl ):
     #
     # We are using context in client mode
     #
-    context.set_verify(SSL.VERIFY_PEER, _verify)
+    context.set_verify(ver_mode, _verify)
 
     return context
 
@@ -268,6 +272,11 @@ def _check_san_wc( cn, host ):
     if scn == host:
         return True
 
+    # if does not contain *, pass
+    #
+    if '*' not in scn:
+        return True
+
     # break down name, do WC check
     #
     dot     = re.compile('\.')
@@ -277,12 +286,13 @@ def _check_san_wc( cn, host ):
     rxString = cn_pt[0].replace("*",".+")
     regex    = re.compile(rxString)
 
+    matches = (regex.match(host_pt[0]) and (host_pt[1]==cn_pt[1])) or ((cn_pt[0]=="*") and (host==cn_pt[1]))
+
     #print host_pt
     #print scn
     #print cn_pt
     #print rxString
-
-    matches = (regex.match(host_pt[0]) and (host_pt[1]==cn_pt[1])) or ((cn_pt[0]=="*") and (host==cn_pt[1]))
+    #print "Matches: "+ str(matches)    
 
     #if regex.match(host_pt[0]) and (host_pt[1] == cn_pt[1]):
     if matches:
@@ -362,9 +372,6 @@ def _stale_cert_check( cert ):
     else:
         return True
 
-
-
-
 # Verify will immediately fail if any errno != 10 is encountered
 #
 # error 10 (Cert Expired) is allow_stale_certs is specified, and a range check will be performed 
@@ -376,18 +383,15 @@ def _verify(conn, cert, errno, depth, result):
     #print depth
     #print result
     #print "-------------------------------"
-
     #print "issuer"
     #issuer = cert.get_issuer().get_components()
     #print issuer
     #print "subject"
     #print cert.get_subject().get_components()
-
     #extcount = cert.get_extension_count()
     #for i in range(0,extcount):
     #    ext = cert.get_extension(i)
     #    print ext.__str__()
-
     #print
     #san = _pyopenssl_cert_or_req_san(cert)
     #print san
@@ -402,19 +406,28 @@ def _verify(conn, cert, errno, depth, result):
     if errno != 0:
         return False
 
+    # check serial number against revocation list
+    # need to convert serial number to a hex string
+    #
+    serial   = cert.get_serial_number();
+    serial_H = hex(serial)    
+    serial_H = re.sub('0x','',serial_H)
+    serial_H = serial_H.upper()
+    serial_H = re.sub('L','',serial_H)
+
+    #print serial_H
+    if serial_H in revoke_serial:
+        #print "REVOKED!!!"
+        return False
+
     # if depth==0 (server's certificate), also do the wildcard certificate check
     #
     if depth == 0:
         common_name = cert.get_subject().commonName.decode()
         return _check_san_wc( common_name, host )
 
-
-    # check serial number against revocation list
+    # Everything Passed!
     #
-    serial = cert.get_serial_number();
-    if serial in revoke_serial:
-        return False
-
     return True
 
 
@@ -541,8 +554,6 @@ def main():
         sys.stderr.write("use ./scurl --help for more information\n")
         exit(1)
 
-
-
     if (len(args.url) == 0):
         sys.stderr.write("Please Input a URL, use ./scurl --help for more information\n")
         exit(1)
@@ -557,7 +568,9 @@ def main():
     (addr,port,path,host)   = _check_and_format_url( args.url[0] )
     crl                     = _load_crl(args.crlfile)
     cacert                  = args.cacert 
-    
+    ciphers                 = args.ciphers    
+    pcert                   = args.pinnedcertificate
+
     # allow-stale-certs check - must be integer input
     # 
     if args.staleN != None:
@@ -571,15 +584,10 @@ def main():
     # Set up SSL Connection and perform HTTP GET
     #==============================================================
     
-    ctx         = _get_context( protocol, cacert, crl )
-
-
+    ctx         = _get_context( protocol, cacert, ciphers, pcert )
     ssl_sock    = _ssl_connect( ctx, addr, port, host )
-    cert        = _check_cert( ssl_sock )
-
-    _get_data( ssl_sock, host, path )
-
-
+    cert        = _check_cert( ssl_sock, pcert )
+    data        = _get_data( ssl_sock, host, path )
     _ssl_close(ssl_sock)
 
 
