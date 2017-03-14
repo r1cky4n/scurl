@@ -4,7 +4,8 @@
 #
 # CS255 Project 2 - SCURL
 #
-# Author:   Rick Yan <my259@stanford.edu>
+# Authors:   Rick Yan <my259@stanford.edu>
+#            Jonathan Griffin <jgriffi2@stanford.edu>
 #
 #=======================================================================================================================
 
@@ -542,7 +543,7 @@ class ThrowingArgumentParser(argparse.ArgumentParser):
         raise ArgumentParserError(message)
 
 def main():
-    descr = 'Secure CURL implementation for CS 255 Project 2: Rick Yan <my259@stanford.edu>'
+    descr = 'Secure CURL implementation for CS 255 Project 2: Rick Yan <my259@stanford.edu>,  Jonathan Griffin <jgriffi2@stanford.edu>'
     #parser = argparse.ArgumentParser(description=descr)
     parser = ThrowingArgumentParser(description=descr)
 
