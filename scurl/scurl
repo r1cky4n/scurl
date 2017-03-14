@@ -27,10 +27,6 @@ import re
 # Defines
 #=======================================================================================================================
 
-# HTTP Request Ending 
-#
-CRLF = '\r\n\r\n'
-
 # global variable so the _stale_cert_check handler can have a proper reference
 #
 staleN = -1
@@ -59,20 +55,19 @@ revoke_serial = []
 #   reject URLS without https scheme
 #   reject invalid addresses
 #
-#
 def _check_and_format_url( url ):
 
     # URL Parse to get Schema, hostname, port
     #
     o = urlparse(url)
 
-    # Scheme Check
+    # Scheme Check - must be HTTPS
     #
     if o.scheme != 'https':
         sys.stderr.write("Invalid URL, not HTTPS Scheme, exiting...\n")
         exit(1)
         
-    # check if address is proper - FIXME is hostname all we need?
+    # check if address is proper 
     #
     ip_addr = ""
     try:
@@ -81,7 +76,7 @@ def _check_and_format_url( url ):
         sys.stderr.write("Invalid URL, address not proper, exiting...\n")
         exit(1)
 
-    # assign port if defined
+    # assign port if defined, default to 443 (HTTPS Port)
     #
     ip_port = 443;
     try:
@@ -117,10 +112,10 @@ def _choose_protocol( args ):
         return SSL.SSLv3_METHOD
     else:
         return SSL.TLSv1_2_METHOD 
-        #return SSL.TLSv1_METHOD #FIXME - make it 1.2 default, for now it keep 1.0 so we can develop off of corn
 
 
 # load crl.pem file, output x509 representation
+# stores crl serial numbers into a list revoke_serial to be queried in the verification handler
 #
 def _load_crl( crlfile ):
     if crlfile == None:
@@ -131,8 +126,6 @@ def _load_crl( crlfile ):
         with open(crlfile, 'r') as _crl_file:
             crl_pem = "".join(_crl_file.readlines()) 
     except:
-        # issue with crlfile - ignore it
-        #
         sys.stderr.write("CRLFILE OPEN failed:\n")
         exit(1)
         #return None
@@ -142,8 +135,6 @@ def _load_crl( crlfile ):
     except Exception as e:
         sys.stderr.write("CRLFILE Parse failed: "+str(e)+"\n")
         exit(1)
-        # issue with crlfile - ignore it
-        #
         #return None
 
     revoked_objects = crl_object.get_revoked()
@@ -158,7 +149,8 @@ def _load_crl( crlfile ):
 #=======================================================================================================================
 
 # Sets up Context, Returns Context
-# FIXME - input parameters
+# 
+# use cacert, ciphers, and pcert information to set up context information
 #
 def _get_context( protocol, cacert, ciphers, pcert ):
     context = SSL.Context(protocol)
@@ -219,9 +211,6 @@ def _ssl_connect( context, ip_addr, port, host ):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ssl_sock = SSL.Connection(context, sock)
 
-    #print ssl_sock.get_cipher_list()
-    #print
-
     try:
         ssl_sock.connect((ip_addr, port))  # 443 is default https port
         ssl_sock.set_tlsext_host_name(host)
@@ -237,17 +226,37 @@ def _ssl_connect( context, ip_addr, port, host ):
 def _ssl_close( ssl_sock ):
     ssl_sock.close()
 
-
-
-
-
-
 # Get the Certificate from the Connected Server
-#   FIXME - do pinned cert check here
+#   Manual Check for Pinned Certificate
 #
-def _check_cert( ssl_sock ):
+def _check_cert( ssl_sock, pcert ):
     cert = ssl_sock.get_peer_certificate()
     common_name = cert.get_subject().commonName.decode()
+
+    # Pinned Certificate not set, pass
+    #
+    if pcert == None:
+        return True
+    
+    pcert_pem = ""
+    try: 
+        with open(pcert, 'r') as _pcert_file:
+            pcert_pem = "".join(_pcert_file.readlines()) 
+    except:
+        sys.stderr.write("PCERT OPEN failed:\n")
+        exit(1)
+    
+    try:
+        pcert_obj = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, pcert_pem)
+    except Exception as e:
+        sys.stderr.write("PCERT Parse failed: "+str(e)+"\n")
+        exit(1)
+
+
+    _pyopenssl_cert_or_req_san(pcert_obj)
+    print "-----------------------------"
+    print "-----------------------------"
+    _pyopenssl_cert_or_req_san(cert)
 
     #print "+++++++++"
     #print cert.get_subject().get_components()
@@ -294,7 +303,6 @@ def _check_san_wc( cn, host ):
     #print rxString
     #print "Matches: "+ str(matches)    
 
-    #if regex.match(host_pt[0]) and (host_pt[1] == cn_pt[1]):
     if matches:
         return True
     else:
@@ -476,13 +484,12 @@ def recv_with_timeout(ssl_sock,timeout=2):
                 time.sleep(0.1)
         except:
             pass
-     
     # join all parts to make final string
     #
     return ''.join(total_data)
 
 
-# Format the HTTP GET Request through SSL.CONNECTION
+# Format the HTTP GET Request through SSL.CONNECTION, write to stdout
 #
 def _get_data( ssl_sock, host, path ):
 
@@ -503,16 +510,15 @@ def _get_data( ssl_sock, host, path ):
     hdrend = re.compile(r'\r\n\r\n')
     data   = hdrend.split(full_data, 1)
    
-    sys.stdout.write(data[1])
+    # Write Out HTTP GET Results
+    #
+    #sys.stdout.write(data[1])
 
     #print http_req
     #print "-----"
     #print data[0]
 
     return data[1]
-
-    
-
 
 #=======================================================================================================================
 # Main and Argument Parse
@@ -526,16 +532,15 @@ class ThrowingArgumentParser(argparse.ArgumentParser):
     def error(self, message):
         raise ArgumentParserError(message)
 
-
 def main():
     descr = 'Secure CURL implementation for CS 255 Project 2: Rick Yan <my259@stanford.edu>'
     #parser = argparse.ArgumentParser(description=descr)
     parser = ThrowingArgumentParser(description=descr)
 
-
     # ARGUMENTS
     # 
     # Note - url is setup as a list, but we only need to worry about a single 
+    #
     parser.add_argument('--tlsv1.0',           action="store_const", dest="prot", const=0, help='Use TLSv1.0 (SSL)')
     parser.add_argument('--tlsv1.1',           action="store_const", dest="prot", const=1, help='Use TLSv1.1 (SSL)')
     parser.add_argument('--tlsv1.2',           action="store_const", dest="prot", const=2, help='Use TLSv1.2 (SSL)')
@@ -561,6 +566,7 @@ def main():
     #==============================================================
     # Initial parse of the input data
     #==============================================================
+
     global host
     global staleN
 
