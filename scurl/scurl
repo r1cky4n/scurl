@@ -23,6 +23,7 @@ import sys
 import time
 from time import gmtime, strftime
 import re
+import datetime
 
 #=======================================================================================================================
 # Defines
@@ -370,27 +371,39 @@ def _stale_cert_check( cert ):
     if staleN == -1: # allow-stale not set, check should fail
         return False
 
+    expDate = cert.get_notAfter() 
+
     # Adjust the expiration time by +N days, check against current time
     #
-    cert.gmtime_adj_notAfter( 86400 * staleN )
-    #expireDate = cert.get_notAfter()
-
-    # hacky - get day from gmtime, modify it, and create the timestamp string
+    # issue with has_expired and the other time functions from pyopenssl - going to use hacky solution
     #
-    #currDate   = strftime("Y%m%d%H%M%SZ", gmtime())
+    dt      = datetime.datetime.strptime( expDate,"%Y%m%d%H%M%SZ")
+    new_dt  = dt + datetime.timedelta(days=staleN) 
+    new_exp = new_dt.strftime("%Y%m%d%H%M%SZ").encode()
+    
+    curDate = strftime("%Y%m%d%H%M%SZ", gmtime())
+    cdt     = datetime.datetime.strptime( curDate,"%Y%m%d%H%M%SZ")
 
-    #print expireDate
-    #print extTime
+    # NOTE - This does not seem to update cert.has_expired()... don't rely on this
+    #
+    cert.set_notAfter(new_exp)
 
-    #if expireDate <= currDate:
-    #    return True
-    #else:
-    #    return False
+    #print "Before Modifications"
+    #print expDate
+    #print "DateTime"
+    #print dt
+    #print new_dt
+    #print curDate
+    #print cdt
+    #print new_dt > cdt 
 
-    if cert.has_expired():
-        return False
-    else:
+    # updated expiration time > current time? then cert is valid
+    #
+    if new_dt > cdt:
         return True
+    else:
+        return False
+
 
 # Verify will immediately fail if any errno != 10 is encountered
 #
