@@ -113,7 +113,6 @@ def _choose_protocol( args ):
     elif args.prot == 3:
         return SSL.SSLv3_METHOD
     else:
-        #return SSL.TLSv1_METHOD
         return SSL.TLSv1_2_METHOD 
 
 
@@ -294,8 +293,8 @@ def _check_san_wc( cn, host ):
 
     # if does not contain *, pass
     #
-    if '*' not in scn:
-        return True
+    #if '*' not in scn:
+    #    return True
 
     # break down name, do WC check
     #
@@ -320,8 +319,6 @@ def _check_san_wc( cn, host ):
         return False
 
 # supplemental certificate parsing function for debug 
-#
-# NOTE: NOT USE FOR ANY IMPLEMENTATION WORK, ONLY USED TO HELP PRETTY PRINT FOR DEBUG
 # 
 def _pyopenssl_cert_or_req_san(cert_or_req):
     """Get Subject Alternative Names from certificate or CSR using pyOpenSSL.
@@ -416,18 +413,20 @@ def _verify(conn, cert, errno, depth, result):
     #print depth
     #print result
     #print "-------------------------------"
-    #print "issuer"
-    #issuer = cert.get_issuer().get_components()
-    #print issuer
-    #print "subject"
     #print cert.get_subject().get_components()
     #extcount = cert.get_extension_count()
-    #for i in range(0,extcount):
-    #    ext = cert.get_extension(i)
-    #    print ext.__str__()
+    #print extcount
+    #if depth==0:
+    #    for i in range(0,extcount):
+    #        ext = cert.get_extension(i)
+    #        print ext.get_short_name()
+    #        print ext.get_short_name() == 'subjectAltName'
+    #        print ext.__str__()
     #print
     #san = _pyopenssl_cert_or_req_san(cert)
     #print san
+    #if depth==0:
+    #    _stale_cert_check(cert)
 
     # If error 10 (Cert Expired) - let stale_cert_check qualify again
     #
@@ -448,16 +447,35 @@ def _verify(conn, cert, errno, depth, result):
     serial_H = serial_H.upper()
     serial_H = re.sub('L','',serial_H)
 
-    #print serial_H
     if serial_H in revoke_serial:
         #print "REVOKED!!!"
         return False
 
     # if depth==0 (server's certificate), also do the wildcard certificate check
+    # First check common name, then check SAN
     #
     if depth == 0:
+        # check common_name first
+        #
+        host_match = False
         common_name = cert.get_subject().commonName.decode()
-        return _check_san_wc( common_name, host )
+        host_match = host_match or _check_san_wc( common_name, host )
+
+        # Iterate through extensions and find subjectAltName
+        # parse the DNS information for SAN info
+        #
+        for i in range(0,cert.get_extension_count()):
+            ext = cert.get_extension(i)
+            if ext.get_short_name() == 'subjectAltName':
+                sep      = re.compile(', ')
+                san_list = sep.split(ext.__str__())
+                for san in san_list:
+                    san = re.sub('DNS:','',san)
+                    host_match = host_match or _check_san_wc( san, host )
+                    #print san
+                    #print host_match
+        
+        return host_match
 
     # Everything Passed!
     #
