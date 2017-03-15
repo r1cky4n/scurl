@@ -318,7 +318,9 @@ def _check_san_wc( cn, host ):
     else:
         return False
 
-# supplemental certificate parsing function for debug
+# supplemental certificate parsing function for debug 
+#
+# NOTE: NOT USE FOR ANY IMPLEMENTATION WORK, ONLY USED TO HELP PRETTY PRINT FOR DEBUG
 # 
 def _pyopenssl_cert_or_req_san(cert_or_req):
     """Get Subject Alternative Names from certificate or CSR using pyOpenSSL.
