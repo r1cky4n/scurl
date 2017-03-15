@@ -383,6 +383,7 @@ def _stale_cert_check( cert ):
     cdt     = datetime.datetime.strptime( curDate,"%Y%m%d%H%M%SZ")
 
     # NOTE - This does not seem to update cert.has_expired()... don't rely on this
+    #
     cert.set_notAfter(new_exp)
 
     #print "Before Modifications"
@@ -400,6 +401,7 @@ def _stale_cert_check( cert ):
         return True
     else:
         return False
+
 
 # Verify will immediately fail if any errno != 10 is encountered
 #
@@ -424,11 +426,6 @@ def _verify(conn, cert, errno, depth, result):
     #print
     #san = _pyopenssl_cert_or_req_san(cert)
     #print san
-
-    if depth == 0:
-        _stale_cert_check( cert )
-
-
 
     # If error 10 (Cert Expired) - let stale_cert_check qualify again
     #
@@ -538,7 +535,7 @@ def _get_data( ssl_sock, host, path ):
    
     # Write Out HTTP GET Results
     #
-    #sys.stdout.write(data[1])
+    sys.stdout.write(data[1])
 
     #print http_req
     #print "-----"
