@@ -305,7 +305,8 @@ def _check_san_wc( cn, host ):
     rxString = cn_pt[0].replace("*",".+")
     regex    = re.compile(rxString)
 
-    matches = (regex.match(host_pt[0]) and (host_pt[1]==cn_pt[1])) or ((cn_pt[0]=="*") and (host==cn_pt[1]))
+    #matches = (regex.match(host_pt[0]) and (host_pt[1]==cn_pt[1])) or ((cn_pt[0]=="*") and (host==cn_pt[1]))
+    matches = (regex.match(host_pt[0]) and (host_pt[1]==cn_pt[1]))
 
     #print host_pt
     #print scn
@@ -538,7 +539,7 @@ def _get_data( ssl_sock, host, path ):
 
     # FIXME - proper GET Command - doublecheck this
     #
-    http_get  = 'GET '+path+' HTTP/1.1\r\n'
+    http_get  = 'GET '+path+' HTTP/1.0\r\n'
     http_host = 'HOST: '+host+'\r\n'
     http_user = 'User-Agent: curl/7.53.1\r\n'
     http_acc  = 'Accept: */*\r\n'
