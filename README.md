@@ -1,3 +1,3 @@
-# cs255_p2
+# scurl
 
-Our implementation of CS255 Intro to Crypto's Secure CURL Application. Allows for curl using HTTPS.
+Implementation of CS255 Intro to Crypto's Secure CURL Application. Allows for curl using HTTPS.
